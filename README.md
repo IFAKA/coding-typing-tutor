@@ -41,7 +41,22 @@ coding-type
 - **Syntax highlighting** on untyped code (Catppuccin Mocha theme)
 - **Live WPM + accuracy** updating as you type
 - **Session history** saved to `~/.config/coding-type/history.json`
+- **Persistent menu selection** — language, difficulty, and mode are remembered across sessions
 - **Smart snippet selection** — avoids recently seen snippets
+
+## Reset
+
+Delete history and preferences:
+
+```sh
+rm -rf ~/.config/coding-type
+```
+
+Delete only preferences (keep history):
+
+```sh
+rm ~/.config/coding-type/prefs.json
+```
 
 ## Build from source
 

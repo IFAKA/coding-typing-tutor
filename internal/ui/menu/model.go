@@ -21,10 +21,14 @@ type Model struct {
 	activeRow int // 0=lang, 1=diff, 2=mode
 }
 
-// New creates a fresh menu model, loading history from disk.
+// New creates a fresh menu model, loading history and preferences from disk.
 func New(width, height int) Model {
 	entries, _ := history.Load()
+	prefs := history.LoadPrefs()
 	return Model{
+		langIdx: prefs.LangIdx,
+		diffIdx: prefs.DiffIdx,
+		modeIdx: prefs.ModeIdx,
 		entries: entries,
 		seenAt:  history.LastSeenMap(entries),
 		width:   width,
@@ -75,6 +79,7 @@ func (m *Model) cycleRight() {
 	case 2:
 		m.modeIdx = (m.modeIdx + 1) % len(snippets.Modes)
 	}
+	m.savePrefs()
 }
 
 func (m *Model) cycleLeft() {
@@ -86,6 +91,15 @@ func (m *Model) cycleLeft() {
 	case 2:
 		m.modeIdx = (m.modeIdx + len(snippets.Modes) - 1) % len(snippets.Modes)
 	}
+	m.savePrefs()
+}
+
+func (m *Model) savePrefs() {
+	history.SavePrefs(history.Prefs{
+		LangIdx: m.langIdx,
+		DiffIdx: m.diffIdx,
+		ModeIdx: m.modeIdx,
+	})
 }
 
 func (m *Model) startTyping() tea.Cmd {
