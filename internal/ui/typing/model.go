@@ -4,10 +4,11 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/IFAKA/coding-type/internal/engine"
-	"github.com/IFAKA/coding-type/internal/snippets"
-	"github.com/IFAKA/coding-type/internal/sound"
-	"github.com/IFAKA/coding-type/internal/ui/msgs"
+	"github.com/IFAKA/coding-typing-tutor/internal/engine"
+	"github.com/IFAKA/coding-typing-tutor/internal/keymap"
+	"github.com/IFAKA/coding-typing-tutor/internal/snippets"
+	"github.com/IFAKA/coding-typing-tutor/internal/sound"
+	"github.com/IFAKA/coding-typing-tutor/internal/ui/msgs"
 )
 
 const timedDuration = 60 * time.Second
@@ -16,23 +17,34 @@ type tickMsg struct{}
 
 // Model is the BubbleTea model for the typing exercise screen.
 type Model struct {
-	state         engine.TypingState
-	snippet       snippets.Snippet
-	config        snippets.Config
-	bestWPM       int
-	avgWPM        int
-	width         int
-	height        int
-	cursorVisible bool
-	errorFlash    int // counts down from 4 → 0; cursor shows red while > 0
-	tickCount     int
+	state          engine.TypingState
+	snippet        snippets.Snippet
+	config         snippets.Config
+	bestWPM        int
+	avgWPM         int
+	width          int
+	height         int
+	cursorVisible  bool
+	errorFlash     int // counts down from 4 → 0; cursor shows red while > 0
+	tickCount      int
+	keyDelta       map[rune]msgs.KeyDelta // per-key stats for this session
+	weakKeys       map[rune]bool          // keys with high error rate from history
+	wrongKeyFlash  int                    // counts down while > 0; shows finger hint
+	wrongExpected  rune                   // expected key during wrong-key flash
 }
 
 // New creates a typing model from a StartTypingMsg.
 func New(msg msgs.StartTypingMsg, width, height int) Model {
+	code := msg.Snippet.Code
+	if msg.Code != "" {
+		code = msg.Code
+		// Store generated code on snippet so results display correctly
+		msg.Snippet.Code = code
+	}
 	chromaLang := snippets.ChromaLang[msg.Config.Language]
-	colors := engine.SyntaxColors(msg.Snippet.Code, chromaLang)
-	state := engine.NewTypingState(msg.Snippet.Code, colors)
+	colors := engine.SyntaxColors(code, chromaLang)
+	state := engine.NewTypingState(code, colors)
+	kstore, _ := keymap.Load()
 	return Model{
 		state:         state,
 		snippet:       msg.Snippet,
@@ -42,6 +54,8 @@ func New(msg msgs.StartTypingMsg, width, height int) Model {
 		width:         width,
 		height:        height,
 		cursorVisible: true,
+		keyDelta:      make(map[rune]msgs.KeyDelta),
+		weakKeys:      keymap.WeakKeys(kstore, 0.15),
 	}
 }
 
@@ -60,9 +74,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.tickCount%5 == 0 {
 			m.cursorVisible = !m.cursorVisible
 		}
-		// Decay error flash
+		// Decay error flash and wrong-key flash
 		if m.errorFlash > 0 {
 			m.errorFlash--
+		}
+		if m.wrongKeyFlash > 0 {
+			m.wrongKeyFlash--
 		}
 		if m.state.Finished {
 			return m, nil
@@ -88,6 +105,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			prevErrors := m.state.Errors
 			prevCursor := m.state.Cursor
+			var expected rune
+			if prevCursor < len(m.state.Target) {
+				expected = m.state.Target[prevCursor]
+			}
 			var done bool
 			m.state, done = engine.ProcessKey(m.state, msg)
 			if done {
@@ -99,15 +120,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				return m, m.doneCmd()
 			}
-			if m.state.Cursor > prevCursor {
+			if m.state.Cursor > prevCursor && expected != 0 {
+				d := m.keyDelta[expected]
+				d.Attempts++
 				if m.state.Errors > prevErrors {
+					d.Errors++
 					m.errorFlash = 4
+					m.wrongKeyFlash = 20
+					m.wrongExpected = expected
 					sound.PlayError()
 				} else if msg.Type == tea.KeyEnter {
 					sound.PlayNewline()
 				} else {
 					sound.PlayCorrect()
 				}
+				m.keyDelta[expected] = d
 			}
 		}
 	}
@@ -127,6 +154,7 @@ func (m Model) doneCmd() tea.Cmd {
 			Duration:       m.state.FinishedAt.Sub(m.state.StartedAt),
 			IsPersonalBest: isPersonalBest,
 			DiffFromAvg:    diff,
+			KeyDeltas:      m.keyDelta,
 		}
 	}
 }
@@ -154,3 +182,6 @@ func (m Model) Snippet() snippets.Snippet  { return m.snippet }
 func (m Model) Config() snippets.Config    { return m.config }
 func (m Model) Width() int                 { return m.width }
 func (m Model) Height() int                { return m.height }
+func (m Model) WeakKeys() map[rune]bool    { return m.weakKeys }
+func (m Model) WrongKeyFlash() int         { return m.wrongKeyFlash }
+func (m Model) WrongExpected() rune        { return m.wrongExpected }

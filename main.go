@@ -5,7 +5,7 @@ import (
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/IFAKA/coding-type/internal/ui"
+	"github.com/IFAKA/coding-typing-tutor/internal/ui"
 )
 
 func main() {

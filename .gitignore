@@ -1,2 +1,4 @@
 coding-type
 dist/
+.claude/
+.!*

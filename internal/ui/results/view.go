@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/IFAKA/coding-type/internal/theme"
+	"github.com/IFAKA/coding-typing-tutor/internal/theme"
 )
 
 var sparkles = []string{"✦", "✧", "·", "✦", "·", "✧", "·", "✦"}

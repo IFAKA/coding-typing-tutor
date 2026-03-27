@@ -4,7 +4,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/IFAKA/coding-type/internal/ui/msgs"
+	"github.com/IFAKA/coding-typing-tutor/internal/ui/msgs"
 )
 
 type resultTickMsg struct{}

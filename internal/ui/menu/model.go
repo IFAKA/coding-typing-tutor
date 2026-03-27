@@ -1,25 +1,30 @@
 package menu
 
 import (
+	"fmt"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/IFAKA/coding-type/internal/history"
-	"github.com/IFAKA/coding-type/internal/snippets"
-	"github.com/IFAKA/coding-type/internal/sound"
-	"github.com/IFAKA/coding-type/internal/ui/msgs"
+	"github.com/IFAKA/coding-typing-tutor/internal/history"
+	"github.com/IFAKA/coding-typing-tutor/internal/keymap"
+	"github.com/IFAKA/coding-typing-tutor/internal/lessons"
+	"github.com/IFAKA/coding-typing-tutor/internal/snippets"
+	"github.com/IFAKA/coding-typing-tutor/internal/sound"
+	"github.com/IFAKA/coding-typing-tutor/internal/ui/msgs"
 )
 
 // Model is the BubbleTea model for the menu screen.
 type Model struct {
-	langIdx   int
-	diffIdx   int
-	modeIdx   int
-	entries   []history.Entry
-	seenAt    map[string]time.Time
-	width     int
-	height    int
-	activeRow int // 0=lang, 1=diff, 2=mode
+	langIdx    int
+	diffIdx    int
+	modeIdx    int
+	lessonIdx  int // only active when mode == "lesson"
+	entries    []history.Entry
+	seenAt     map[string]time.Time
+	progress   lessons.Progress
+	width      int
+	height     int
+	activeRow  int // 0=lang, 1=diff, 2=mode, 3=lesson (lesson mode only)
 }
 
 // New creates a fresh menu model, loading history and preferences from disk.
@@ -27,13 +32,14 @@ func New(width, height int) Model {
 	entries, _ := history.Load()
 	prefs := history.LoadPrefs()
 	return Model{
-		langIdx: prefs.LangIdx,
-		diffIdx: prefs.DiffIdx,
-		modeIdx: prefs.ModeIdx,
-		entries: entries,
-		seenAt:  history.LastSeenMap(entries),
-		width:   width,
-		height:  height,
+		langIdx:  prefs.LangIdx,
+		diffIdx:  prefs.DiffIdx,
+		modeIdx:  prefs.ModeIdx,
+		entries:  entries,
+		seenAt:   history.LastSeenMap(entries),
+		progress: lessons.LoadProgress(),
+		width:    width,
+		height:   height,
 	}
 }
 
@@ -53,11 +59,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, func() tea.Msg { return msgs.NavigateMsg{To: msgs.ScreenStats} }
 
 		case "tab", "down", "j":
-			m.activeRow = (m.activeRow + 1) % 3
+			m.activeRow = (m.activeRow + 1) % m.numRows()
 			go sound.PlayNavRow()
 
 		case "shift+tab", "up", "k":
-			m.activeRow = (m.activeRow + 2) % 3
+			m.activeRow = (m.activeRow + m.numRows() - 1) % m.numRows()
 			go sound.PlayNavRow()
 
 		case "right", "l":
@@ -83,6 +89,8 @@ func (m *Model) cycleRight() {
 		m.diffIdx = (m.diffIdx + 1) % len(snippets.Difficulties)
 	case 2:
 		m.modeIdx = (m.modeIdx + 1) % len(snippets.Modes)
+	case 3:
+		m.lessonIdx = (m.lessonIdx + 1) % len(lessons.All)
 	}
 	m.savePrefs()
 }
@@ -95,8 +103,23 @@ func (m *Model) cycleLeft() {
 		m.diffIdx = (m.diffIdx + len(snippets.Difficulties) - 1) % len(snippets.Difficulties)
 	case 2:
 		m.modeIdx = (m.modeIdx + len(snippets.Modes) - 1) % len(snippets.Modes)
+	case 3:
+		m.lessonIdx = (m.lessonIdx + len(lessons.All) - 1) % len(lessons.All)
 	}
 	m.savePrefs()
+}
+
+// numRows returns the number of navigable rows based on current mode.
+func (m *Model) numRows() int {
+	if m.isLessonMode() {
+		return 4
+	}
+	return 3
+}
+
+// isLessonMode returns true when the current mode selection is "lesson".
+func (m *Model) isLessonMode() bool {
+	return snippets.Modes[m.modeIdx] == "lesson"
 }
 
 func (m *Model) savePrefs() {
@@ -112,7 +135,34 @@ func (m *Model) startTyping() tea.Cmd {
 	diff := snippets.Difficulties[m.diffIdx]
 	mode := snippets.Modes[m.modeIdx]
 
-	snippet := snippets.Pick(lang, diff, m.seenAt)
+	if mode == "lesson" {
+		lesson := lessons.All[m.lessonIdx]
+		if !m.progress.Unlocked[lesson.Number] {
+			// Lesson locked — do nothing (view shows lock indicator)
+			return nil
+		}
+		code := lessons.Generate(lesson, 120)
+		snippet := snippets.Snippet{
+			ID:    fmt.Sprintf("lesson-%d", lesson.Number),
+			Title: lesson.Name,
+		}
+		cfg := snippets.Config{
+			Language:  "lesson",
+			Mode:      "lesson",
+			LessonNum: lesson.Number,
+		}
+		return func() tea.Msg {
+			return msgs.StartTypingMsg{
+				Snippet: snippet,
+				Config:  cfg,
+				Code:    code,
+			}
+		}
+	}
+
+	kstore, _ := keymap.Load()
+	weak := keymap.WeakKeys(kstore, 0.15)
+	snippet := snippets.Pick(lang, diff, m.seenAt, weak)
 	if snippet == nil {
 		return nil
 	}

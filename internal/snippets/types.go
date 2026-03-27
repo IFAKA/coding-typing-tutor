@@ -14,7 +14,8 @@ type Snippet struct {
 type Config struct {
 	Language   string
 	Difficulty string
-	Mode       string // "practice" or "timed"
+	Mode       string // "practice", "timed", or "lesson"
+	LessonNum  int    // only meaningful when Mode == "lesson"
 }
 
 // Languages is the ordered list of supported languages.
@@ -24,7 +25,7 @@ var Languages = []string{"python", "javascript", "typescript", "go", "cpp", "nex
 var Difficulties = []string{"easy", "medium", "hard"}
 
 // Modes is the ordered list of practice modes.
-var Modes = []string{"practice", "timed"}
+var Modes = []string{"practice", "timed", "lesson"}
 
 // LangDisplay maps language IDs to display names.
 var LangDisplay = map[string]string{

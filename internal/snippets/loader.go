@@ -58,7 +58,8 @@ func Filter(language, difficulty string) []Snippet {
 
 // Pick selects a snippet weighted by recency (snippets seen longer ago score higher).
 // seenAt maps snippet ID → last time it was played (zero value = never played).
-func Pick(language, difficulty string, seenAt map[string]time.Time) *Snippet {
+// weakKeys optionally boosts snippets containing keys the user struggles with.
+func Pick(language, difficulty string, seenAt map[string]time.Time, weakKeys map[rune]bool) *Snippet {
 	pool := Filter(language, difficulty)
 	if len(pool) == 0 {
 		// Fallback: ignore difficulty filter
@@ -76,13 +77,28 @@ func Pick(language, difficulty string, seenAt map[string]time.Time) *Snippet {
 
 	scored_ := make([]scored, len(pool))
 	for i, s := range pool {
+		var base float64
 		last, ok := seenAt[s.ID]
 		if !ok {
-			// Never seen — maximum score
-			scored_[i] = scored{s, 1e9}
+			base = 1e9
 		} else {
-			scored_[i] = scored{s, now.Sub(last).Hours()}
+			base = now.Sub(last).Hours()
 		}
+		// Adaptive bonus: snippets containing more weak keys score higher.
+		var bonus float64
+		if len(weakKeys) > 0 {
+			count := 0
+			for _, r := range []rune(s.Code) {
+				if weakKeys[r] {
+					count++
+				}
+			}
+			total := len([]rune(s.Code))
+			if total > 0 {
+				bonus = float64(count) / float64(total) * 10.0
+			}
+		}
+		scored_[i] = scored{s, base + bonus}
 	}
 
 	// Sort descending by score

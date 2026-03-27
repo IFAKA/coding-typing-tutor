@@ -6,8 +6,9 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/IFAKA/coding-type/internal/engine"
-	"github.com/IFAKA/coding-type/internal/theme"
+	"github.com/IFAKA/coding-typing-tutor/internal/engine"
+	kb "github.com/IFAKA/coding-typing-tutor/internal/keyboard"
+	"github.com/IFAKA/coding-typing-tutor/internal/theme"
 )
 
 func (m Model) View() string {
@@ -25,20 +26,50 @@ func (m Model) View() string {
 	if m.state.Cursor < len(m.state.Target) {
 		curChar = m.state.Target[m.state.Cursor]
 	}
+
+	var wrongFlash rune
+	if m.wrongKeyFlash > 0 {
+		wrongFlash = m.wrongExpected
+	}
+
 	keyboard := lipgloss.NewStyle().
 		Width(lipgloss.Width(box)).
 		Align(lipgloss.Center).
-		Render(renderKeyboard(curChar))
+		Render(renderKeyboard(curChar, m.weakKeys, wrongFlash))
 
-	content := strings.Join([]string{header, box, help, "", keyboard}, "\n")
+	// Finger hint shown for 2s after a wrong keypress
+	var hint string
+	if m.wrongKeyFlash > 0 {
+		base, _ := kb.ResolveKey(m.wrongExpected)
+		f := kb.ActiveFinger(base)
+		if f >= 0 {
+			keyLabel := string(m.wrongExpected)
+			if m.wrongExpected == '\n' {
+				keyLabel = "enter"
+			} else if m.wrongExpected == ' ' {
+				keyLabel = "space"
+			}
+			hint = "\n  " + lipgloss.NewStyle().Foreground(kb.FingerColor[f]).Render(
+				fmt.Sprintf("use %s finger for '%s'", kb.FingerNames[f], keyLabel),
+			)
+		}
+	}
+
+	content := strings.Join([]string{header, box, help, "", keyboard}, "\n") + hint
 
 	return lipgloss.Place(m.width, m.height,
 		lipgloss.Center, lipgloss.Center, content)
 }
 
 func renderHeader(m Model) string {
-	lang := theme.HeaderBadge.Render(" " + m.config.Language + " ")
 	dot := theme.Muted.Render(" · ")
+	if m.config.Mode == "lesson" {
+		badge := theme.HeaderBadge.Render(" lesson ")
+		num := theme.Muted.Render(fmt.Sprintf("level %d", m.config.LessonNum))
+		title := theme.Muted.Render(m.snippet.Title)
+		return "  " + badge + dot + num + dot + title + "\n"
+	}
+	lang := theme.HeaderBadge.Render(" " + m.config.Language + " ")
 	diff := diffStyle(m.config.Difficulty).Render(m.config.Difficulty)
 	mode := theme.Muted.Render(m.config.Mode)
 	title := theme.Muted.Render(m.snippet.Title)

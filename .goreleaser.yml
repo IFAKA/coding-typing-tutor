@@ -33,7 +33,7 @@ checksum:
 release:
   github:
     owner: IFAKA
-    name: coding-type
+    name: coding-typing-tutor
   draft: false
   prerelease: auto
   name_template: "v{{ .Version }}"

@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-REPO="IFAKA/coding-type"
+REPO="IFAKA/coding-typing-tutor"
 BINARY="coding-type"
 INSTALL_DIR="${CODING_TYPE_INSTALL_DIR:-$HOME/.local/bin}"
 

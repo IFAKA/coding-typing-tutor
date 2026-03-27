@@ -4,14 +4,16 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/IFAKA/coding-type/internal/history"
-	"github.com/IFAKA/coding-type/internal/snippets"
-	"github.com/IFAKA/coding-type/internal/sound"
-	"github.com/IFAKA/coding-type/internal/ui/menu"
-	"github.com/IFAKA/coding-type/internal/ui/msgs"
-	"github.com/IFAKA/coding-type/internal/ui/results"
-	"github.com/IFAKA/coding-type/internal/ui/stats"
-	"github.com/IFAKA/coding-type/internal/ui/typing"
+	"github.com/IFAKA/coding-typing-tutor/internal/history"
+	"github.com/IFAKA/coding-typing-tutor/internal/keymap"
+	"github.com/IFAKA/coding-typing-tutor/internal/lessons"
+	"github.com/IFAKA/coding-typing-tutor/internal/snippets"
+	"github.com/IFAKA/coding-typing-tutor/internal/sound"
+	"github.com/IFAKA/coding-typing-tutor/internal/ui/menu"
+	"github.com/IFAKA/coding-typing-tutor/internal/ui/msgs"
+	"github.com/IFAKA/coding-typing-tutor/internal/ui/results"
+	"github.com/IFAKA/coding-typing-tutor/internal/ui/stats"
+	"github.com/IFAKA/coding-typing-tutor/internal/ui/typing"
 )
 
 // App is the root BubbleTea model that routes between screens.
@@ -76,6 +78,18 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			DurationMs:   msg.Duration.Milliseconds(),
 			Errors:       msg.Errors,
 		})
+		if len(msg.KeyDeltas) > 0 {
+			km := make(map[rune]keymap.KeyDelta, len(msg.KeyDeltas))
+			for r, d := range msg.KeyDeltas {
+				km[r] = keymap.KeyDelta{Attempts: d.Attempts, Errors: d.Errors}
+			}
+			_ = keymap.Merge(km)
+		}
+		if msg.Config.Mode == "lesson" {
+			p := lessons.LoadProgress()
+			lessons.UpdateProgress(&p, msg.Config.LessonNum, msg.Accuracy)
+			_ = lessons.SaveProgress(p)
+		}
 		a.screen = msgs.ScreenResults
 		a.results = results.New(msg, a.width, a.height)
 		return a, a.results.Init()
@@ -101,7 +115,9 @@ func (a App) navigate(to msgs.Screen) (tea.Model, tea.Cmd) {
 func (a App) pickAndStart(cfg snippets.Config, bestWPM, avgWPM int) (tea.Model, tea.Cmd) {
 	entries, _ := history.Load()
 	seenAt := history.LastSeenMap(entries)
-	snippet := snippets.Pick(cfg.Language, cfg.Difficulty, seenAt)
+	kstore, _ := keymap.Load()
+	weak := keymap.WeakKeys(kstore, 0.15)
+	snippet := snippets.Pick(cfg.Language, cfg.Difficulty, seenAt, weak)
 	if snippet == nil {
 		a.screen = msgs.ScreenMenu
 		a.menu = menu.New(a.width, a.height)

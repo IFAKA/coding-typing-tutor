@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/IFAKA/coding-type/internal/history"
-	"github.com/IFAKA/coding-type/internal/theme"
+	"github.com/IFAKA/coding-typing-tutor/internal/history"
+	"github.com/IFAKA/coding-typing-tutor/internal/theme"
 )
 
 func (m Model) View() string {
@@ -17,12 +17,17 @@ func (m Model) View() string {
 		return m.emptyView()
 	}
 
+	if m.activeTab == 1 {
+		return m.heatmapView()
+	}
+
 	aggregates := renderAggregates(s)
 	recentTable := renderRecent(s.Recent)
 
 	sep := theme.Separator.Render(strings.Repeat("─", 48))
 
-	help := "  " + theme.HelpKey.Render("m") + " " + theme.HelpDesc.Render("menu") +
+	help := "  " + theme.HelpKey.Render("tab") + " " + theme.HelpDesc.Render("heatmap") +
+		"   " + theme.HelpKey.Render("m") + " " + theme.HelpDesc.Render("menu") +
 		"   " + theme.HelpKey.Render("q") + " " + theme.HelpDesc.Render("quit")
 
 	inner := strings.Join([]string{

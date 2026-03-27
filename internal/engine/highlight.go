@@ -4,7 +4,7 @@ import (
 	"github.com/alecthomas/chroma/v2"
 	"github.com/alecthomas/chroma/v2/lexers"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/IFAKA/coding-type/internal/theme"
+	"github.com/IFAKA/coding-typing-tutor/internal/theme"
 )
 
 // SyntaxColors returns a lipgloss.Color per rune for the given code string.
